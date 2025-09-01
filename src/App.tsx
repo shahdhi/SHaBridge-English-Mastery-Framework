@@ -27,6 +27,25 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentSection, currentQuestion, currentListeningGroup, phase]);
 
+  // Add warning message when user tries to refresh or close during test
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (phase === 'testing') {
+        e.preventDefault();
+        e.returnValue = 'Are you sure you want to leave? Your test progress will be lost.';
+        return 'Are you sure you want to leave? Your test progress will be lost.';
+      }
+    };
+
+    if (phase === 'testing') {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [phase]);
+
   // Total test time: 70 minutes (4200 seconds)
   const handleTimeUp = useCallback(() => {
     setPhase('complete');
