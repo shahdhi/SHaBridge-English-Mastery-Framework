@@ -198,12 +198,11 @@ export const StudentInfoForm: React.FC<StudentInfoFormProps> = ({ onSubmit }) =>
                     }`}
                   >
                     <option value="">Select your level</option>
-                    <option value="beginner">Beginner (A1)</option>
-                    <option value="elementary">Elementary (A2)</option>
-                    <option value="intermediate">Intermediate (B1)</option>
-                    <option value="upper-intermediate">Upper Intermediate (B2)</option>
-                    <option value="advanced">Advanced (C1)</option>
-                    <option value="proficient">Proficient (C2)</option>
+                    <option value="beginner">Beginner (S1)</option>
+                    <option value="elementary">Elementary (S2)</option>
+                    <option value="intermediate">Intermediate (S3)</option>
+                    <option value="upper-intermediate">Upper Intermediate (S4)</option>
+                    <option value="advanced">Advanced (S5)</option>
                     <option value="unsure">Not sure</option>
                   </select>
                   {errors.level && <p className="text-red-500 text-sm mt-1">{errors.level}</p>}
