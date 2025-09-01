@@ -26,11 +26,11 @@ export interface SEMFResult {
 
 export class SEMFScoringEngine {
   private static readonly LEVEL_DESCRIPTIONS = {
-    S1: "Basic user — understands and uses simple expressions.",
-    S2: "Elementary user — can handle short, routine exchanges.",
-    S3: "Independent user — can deal with most everyday situations.",
-    S4: "Proficient user — can interact fluently and spontaneously.",
-    S5: "Mastery — can express ideas precisely in complex situations."
+    S1: "Basic user - understands and uses simple expressions.",
+    S2: "Elementary user - can handle short, routine exchanges.",
+    S3: "Independent user - can deal with most everyday situations.",
+    S4: "Proficient user - can interact fluently and spontaneously.",
+    S5: "Mastery - can express ideas precisely in complex situations."
   };
 
   private static readonly LEVEL_CUTOFFS = {
