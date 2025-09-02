@@ -32,17 +32,68 @@ function App() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (phase === 'testing') {
         e.preventDefault();
-        e.returnValue = 'Are you sure you want to leave? Your test progress will be lost.';
-        return 'Are you sure you want to leave? Your test progress will be lost.';
+        const message = 'Are you sure you want to leave? Your test progress will be lost.';
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (phase === 'testing' && document.visibilityState === 'hidden') {
+        // Store a flag that user navigated away during test
+        sessionStorage.setItem('testInterrupted', 'true');
+      }
+    };
+
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (phase === 'testing' && e.persisted) {
+        // Page was restored from cache, warn user
+        const interrupted = sessionStorage.getItem('testInterrupted');
+        if (interrupted) {
+          alert('Warning: You navigated away from the test. Please complete the test without interruption.');
+          sessionStorage.removeItem('testInterrupted');
+        }
+      }
+    };
+
+    const handleUnload = () => {
+      if (phase === 'testing') {
+        sessionStorage.setItem('testInterrupted', 'true');
       }
     };
 
     if (phase === 'testing') {
       window.addEventListener('beforeunload', handleBeforeUnload);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('pageshow', handlePageShow);
+      window.addEventListener('unload', handleUnload);
+      
+      // Mobile-specific: Handle back button and navigation
+      const handlePopState = (e: PopStateEvent) => {
+        e.preventDefault();
+        const confirmLeave = confirm('Are you sure you want to leave? Your test progress will be lost.');
+        if (!confirmLeave) {
+          // Push the current state back to prevent navigation
+          window.history.pushState(null, '', window.location.href);
+        } else {
+          // Allow navigation
+          window.history.back();
+        }
+      };
+      
+      // Push initial state for back button handling
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
     }
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('unload', handleUnload);
+      if (phase === 'testing') {
+        window.removeEventListener('popstate', handlePopState);
+      }
     };
   }, [phase]);
 
