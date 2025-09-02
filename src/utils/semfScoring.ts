@@ -41,11 +41,124 @@ export class SEMFScoringEngine {
     S5: { min: 43, max: 50 }
   };
 
-  static calculateSEMFLevel(input: SEMFInput): SEMFResult {
+  // Correct answers for validation
+  private static readonly CORRECT_ANSWERS = {
+    // Grammar & Vocabulary (Questions 1-20)
+    1: 'B', 2: 'A', 3: 'C', 4: 'B', 5: 'C',
+    6: 'C', 7: 'B', 8: 'A', 9: 'C', 10: 'A',
+    11: 'B', 12: 'B', 13: 'C', 14: 'C', 15: 'C',
+    16: 'B', 17: 'B', 18: 'B', 19: 'C', 20: 'B',
+    
+    // Story Continuation (Questions 21-35)
+    21: 'C', 22: 'C', 23: 'B', 24: 'D', 25: 'B',
+    26: 'C', 27: 'B', 28: 'B', 29: 'B', 30: 'B',
+    31: 'B', 32: 'B', 33: 'C', 34: 'A', 35: 'C',
+    
+    // Sentence Ordering (Questions 36-40)
+    36: 'B, C, D, A', 37: 'C, B, A, D', 38: 'A, C, D, B',
+    39: 'B, C, D, A', 40: 'C, B, D, A',
+    
+    // Listening (Questions 45-56)
+    45: 'B', 46: 'B', 47: 'C', 48: 'B', 49: 'B', 50: 'C',
+    51: 'B', 52: 'B', 53: 'B', 54: 'B', 55: 'C', 56: 'B'
+  };
+
+  // Keywords for text answer validation
+  private static readonly TEXT_ANSWER_KEYWORDS = {
+    41: ['flexibility', 'commute', 'talent', 'global', 'reduced', 'access'], // Reading advantages
+    42: ['isolation', 'culture', 'security', 'challenges', 'difficulties'], // Reading challenges
+    43: ['maximize', 'benefits', 'mitigate', 'drawbacks', 'strategies', 'developing'] // Main goal
+  };
+
+  static calculateActualScores(answers: Record<number, string>): SEMFInput {
+    let grammarScore = 0;
+    let readingWritingScore = 0;
+    let listeningScore = 0;
+
+    // Score Grammar & Vocabulary (Questions 1-20)
+    for (let i = 1; i <= 20; i++) {
+      const userAnswer = answers[i]?.trim().toUpperCase();
+      const correctAnswer = this.CORRECT_ANSWERS[i as keyof typeof this.CORRECT_ANSWERS];
+      if (userAnswer === correctAnswer) {
+        grammarScore++;
+      }
+    }
+
+    // Score Reading & Writing section
+    // Story Continuation (Questions 21-35) - 15 questions
+    for (let i = 21; i <= 35; i++) {
+      const userAnswer = answers[i]?.trim().toUpperCase();
+      const correctAnswer = this.CORRECT_ANSWERS[i as keyof typeof this.CORRECT_ANSWERS];
+      if (userAnswer === correctAnswer) {
+        readingWritingScore++;
+      }
+    }
+
+    // Sentence Ordering (Questions 36-40) - 5 questions
+    for (let i = 36; i <= 40; i++) {
+      const userAnswer = answers[i]?.trim();
+      const correctAnswer = this.CORRECT_ANSWERS[i as keyof typeof this.CORRECT_ANSWERS];
+      if (userAnswer === correctAnswer) {
+        readingWritingScore++;
+      }
+    }
+
+    // Text Questions (Questions 41-43) - 3 questions, 1 point each
+    for (let i = 41; i <= 43; i++) {
+      const userAnswer = answers[i]?.toLowerCase() || '';
+      const keywords = this.TEXT_ANSWER_KEYWORDS[i as keyof typeof this.TEXT_ANSWER_KEYWORDS];
+      
+      // Award point if answer contains at least 2 relevant keywords and is substantial
+      const keywordMatches = keywords.filter(keyword => 
+        userAnswer.includes(keyword.toLowerCase())
+      ).length;
+      
+      if (keywordMatches >= 2 && userAnswer.length >= 20) {
+        readingWritingScore++;
+      }
+    }
+
+    // Essay Question (Question 44) - 1 point
+    const essayAnswer = answers[44]?.trim() || '';
+    const wordCount = essayAnswer ? essayAnswer.split(/\s+/).length : 0;
+    
+    // Award point for essay if it meets basic criteria
+    if (wordCount >= 80 && wordCount <= 200 && essayAnswer.length > 0) {
+      // Check for basic argument structure
+      const hasArgument = essayAnswer.toLowerCase().includes('advantage') || 
+                         essayAnswer.toLowerCase().includes('disadvantage') ||
+                         essayAnswer.toLowerCase().includes('benefit') ||
+                         essayAnswer.toLowerCase().includes('challenge');
+      
+      if (hasArgument) {
+        readingWritingScore++;
+      }
+    }
+
+    // Score Listening (Questions 45-56)
+    for (let i = 45; i <= 56; i++) {
+      const userAnswer = answers[i]?.trim().toUpperCase();
+      const correctAnswer = this.CORRECT_ANSWERS[i as keyof typeof this.CORRECT_ANSWERS];
+      if (userAnswer === correctAnswer) {
+        listeningScore++;
+      }
+    }
+
+    return {
+      GrammarVocabulary: grammarScore,
+      ReadingWriting: readingWritingScore,
+      Listening: listeningScore
+    };
+  }
+
+  static calculateSEMFLevel(answers: Record<number, string>): SEMFResult {
+    // Calculate actual scores based on correct answers
+    const rawScores = this.calculateActualScores(answers);
+
     // Step 1: Normalize scores to 0-50 scale
-    const grammarVocabNorm = (input.GrammarVocabulary / 20) * 50;
-    const readingWritingNorm = (input.ReadingWriting / 24) * 50;
-    const listeningNorm = (input.Listening / 12) * 50;
+    const grammarVocabNorm = (rawScores.GrammarVocabulary / 20) * 50;
+    const readingWritingNorm = (rawScores.ReadingWriting / 24) * 50;
+    const listeningNorm = (rawScores.Listening / 12) * 50;
 
     // Step 2: Map normalized scores to SEMF levels
     const mapToLevel = (normalizedScore: number): string => {
@@ -61,28 +174,28 @@ export class SEMFScoringEngine {
     const applyTieBreaker = (normalizedScore: number, grammarVocabNorm: number): { level: string; tieBreakerApplied: boolean } => {
       const baseLevel = mapToLevel(normalizedScore);
       
-      // Check if within 1 point of a cut-off
+      // Check if within 2 points of a level boundary
       for (const [level, range] of Object.entries(this.LEVEL_CUTOFFS)) {
         const lowerBoundary = range.min;
         const upperBoundary = range.max;
         
-        // Check if within 1 point of lower boundary (could move to higher level)
-        if (Math.abs(normalizedScore - lowerBoundary) <= 1 && normalizedScore >= lowerBoundary - 1) {
+        // Check if within 2 points of lower boundary (could move to higher level)
+        if (normalizedScore >= lowerBoundary - 2 && normalizedScore < lowerBoundary) {
           if (grammarVocabNorm >= 35) {
             // Award higher level
-            const levelIndex = Object.keys(this.LEVEL_CUTOFFS).indexOf(level);
-            if (levelIndex > 0) {
-              const higherLevel = Object.keys(this.LEVEL_CUTOFFS)[levelIndex];
-              return { level: higherLevel, tieBreakerApplied: true };
-            }
+            return { level, tieBreakerApplied: true };
           }
         }
         
-        // Check if within 1 point of upper boundary (could move to lower level)
-        if (Math.abs(normalizedScore - upperBoundary) <= 1 && normalizedScore <= upperBoundary + 1) {
+        // Check if within 2 points of upper boundary (could move to lower level)
+        if (normalizedScore > upperBoundary && normalizedScore <= upperBoundary + 2) {
           if (grammarVocabNorm < 35) {
-            // Keep lower level (which is the base level in this case)
-            return { level: baseLevel, tieBreakerApplied: true };
+            // Find the lower level
+            const levelIndex = Object.keys(this.LEVEL_CUTOFFS).indexOf(level);
+            if (levelIndex > 0) {
+              const lowerLevel = Object.keys(this.LEVEL_CUTOFFS)[levelIndex - 1];
+              return { level: lowerLevel, tieBreakerApplied: true };
+            }
           }
         }
       }
@@ -108,14 +221,14 @@ export class SEMFScoringEngine {
     const skills: SEMFSkillResult[] = [
       {
         skill: "ReadingWriting",
-        rawScore: input.ReadingWriting,
+        rawScore: rawScores.ReadingWriting,
         normalizedScore: Math.round(readingWritingNorm * 10) / 10,
         level: readingWritingResult.level,
         tieBreakerApplied: readingWritingResult.tieBreakerApplied
       },
       {
         skill: "Listening",
-        rawScore: input.Listening,
+        rawScore: rawScores.Listening,
         normalizedScore: Math.round(listeningNorm * 10) / 10,
         level: listeningResult.level,
         tieBreakerApplied: listeningResult.tieBreakerApplied
@@ -124,7 +237,7 @@ export class SEMFScoringEngine {
 
     const tieBreakerSkill = {
       skill: "GrammarVocabulary",
-      rawScore: input.GrammarVocabulary,
+      rawScore: rawScores.GrammarVocabulary,
       normalizedScore: Math.round(grammarVocabNorm * 10) / 10
     };
 
@@ -135,25 +248,46 @@ export class SEMFScoringEngine {
       descriptions[level] = this.LEVEL_DESCRIPTIONS[level as keyof typeof this.LEVEL_DESCRIPTIONS];
     });
 
-    // Generate motivational message
-    const getMotivationalMessage = (level: string): string => {
+    // Generate detailed feedback based on actual performance
+    const getDetailedFeedback = (level: string, scores: SEMFInput): string => {
+      const totalAnswered = Object.keys(answers).length;
+      const totalPossible = 56; // Total questions in test
+      const completionRate = (totalAnswered / totalPossible) * 100;
+      
+      let feedback = `Overall SEMF Level: ${level}\n\n`;
+      
+      // Performance breakdown
+      feedback += `Performance Breakdown:\n`;
+      feedback += `• Grammar & Vocabulary: ${scores.GrammarVocabulary}/20 (${Math.round((scores.GrammarVocabulary/20)*100)}%)\n`;
+      feedback += `• Reading & Writing: ${scores.ReadingWriting}/24 (${Math.round((scores.ReadingWriting/24)*100)}%)\n`;
+      feedback += `• Listening: ${scores.Listening}/12 (${Math.round((scores.Listening/12)*100)}%)\n`;
+      feedback += `• Test Completion: ${Math.round(completionRate)}%\n\n`;
+      
+      // Level-specific recommendations
       switch (level) {
         case 'S1':
-          return "You're building a solid foundation! Focus on expanding your vocabulary and basic grammar structures to progress to S2.";
+          feedback += "Recommendations: Focus on basic vocabulary building, simple sentence structures, and everyday expressions. Practice listening to slow, clear speech.";
+          break;
         case 'S2':
-          return "Great progress! Continue practicing everyday conversations and reading simple texts to reach S3.";
+          feedback += "Recommendations: Expand vocabulary for common situations, practice past and future tenses, and work on basic conversation skills.";
+          break;
         case 'S3':
-          return "Well done! You're becoming independent in English. Work on complex grammar and academic vocabulary to achieve S4.";
+          feedback += "Recommendations: Study complex grammar structures, academic vocabulary, and practice expressing opinions clearly in writing.";
+          break;
         case 'S4':
-          return "Excellent work! You're a proficient user. Refine your skills with advanced texts and nuanced expressions to reach S5 mastery.";
+          feedback += "Recommendations: Refine advanced grammar usage, expand professional vocabulary, and practice nuanced expression in complex topics.";
+          break;
         case 'S5':
-          return "Outstanding! You've achieved mastery level. Continue using English in complex, professional contexts to maintain your expertise.";
+          feedback += "Recommendations: Maintain proficiency through exposure to complex texts, academic writing, and professional communication contexts.";
+          break;
         default:
-          return "Keep practicing and you'll continue to improve!";
+          feedback += "Continue practicing to improve your English proficiency.";
       }
+      
+      return feedback;
     };
 
-    const summary = `Reading & Writing: ${input.ReadingWriting}/24 → ${readingWritingResult.level} (${Math.round(readingWritingNorm * 10) / 10})\nListening: ${input.Listening}/12 → ${listeningResult.level} (${Math.round(listeningNorm * 10) / 10})\nOverall SEMF Level: ${overallLevel} — ${getMotivationalMessage(overallLevel)}`;
+    const summary = getDetailedFeedback(overallLevel, rawScores);
 
     return {
       skills,
