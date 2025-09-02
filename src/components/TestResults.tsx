@@ -12,28 +12,8 @@ interface TestResultsProps {
 }
 
 export const TestResults: React.FC<TestResultsProps> = ({ answers, studentInfo, onRestart }) => {
-  const calculateRawScores = () => {
-    // Grammar & Vocabulary (Questions 1-20) - tie-breaker only
-    const grammarAnswers = Object.entries(answers).filter(([id]) => parseInt(id) >= 1 && parseInt(id) <= 20);
-    const grammarScore = Math.floor(grammarAnswers.length * 0.8); // Simulate 80% score
-    
-    // Reading & Writing (Questions 21-44)
-    const readingWritingAnswers = Object.entries(answers).filter(([id]) => parseInt(id) >= 21 && parseInt(id) <= 44);
-    const readingWritingScore = Math.floor(readingWritingAnswers.length * 0.75); // Simulate 75% score
-    
-    // Listening (Questions 45-56)
-    const listeningAnswers = Object.entries(answers).filter(([id]) => parseInt(id) >= 45 && parseInt(id) <= 56);
-    const listeningScore = Math.floor(listeningAnswers.length * 0.8); // Simulate 80% score
-    
-    return {
-      GrammarVocabulary: Math.min(grammarScore, 20),
-      ReadingWriting: Math.min(readingWritingScore, 24),
-      Listening: Math.min(listeningScore, 12)
-    };
-  };
-
-  const rawScores = calculateRawScores();
-  const semfResult = SEMFScoringEngine.calculateSEMFLevel(rawScores);
+  // Calculate actual scores based on correct answers
+  const semfResult = SEMFScoringEngine.calculateSEMFLevel(answers);
 
   const getSEMFLevelColor = (level: string) => {
     switch (level) {
@@ -56,43 +36,52 @@ export const TestResults: React.FC<TestResultsProps> = ({ answers, studentInfo, 
         throw new Error('Results container not found');
       }
 
-      // Get the actual dimensions of the results container
-      const containerRect = resultsElement.getBoundingClientRect();
-      const containerWidth = resultsElement.scrollWidth;
-      const containerHeight = resultsElement.scrollHeight;
-
-      // Create high-quality canvas from the results container
+      // Create optimized canvas from the results container
       const canvas = await html2canvas(resultsElement as HTMLElement, {
-        scale: 2, // High resolution for crisp text
+        scale: 2, // Higher scale for better quality when cropping
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#f9fafb', // Match page background
-        width: containerWidth,
-        height: containerHeight,
+        width: resultsElement.clientWidth,
+        height: resultsElement.clientHeight,
         logging: false, // Reduce console output
-        removeContainer: true // Clean capture
+        removeContainer: true, // Clean capture
+        imageTimeout: 0, // Faster processing
+        foreignObjectRendering: false, // Reduce complexity
+        scrollX: 0,
+        scrollY: 0
       });
 
-      // Convert canvas dimensions to PDF points (72 points = 1 inch, 96 pixels = 1 inch)
-      const pixelsToPoints = 72 / 96;
-      const pdfWidth = (canvas.width * pixelsToPoints) / 2; // Divide by 2 because we used 2x scale
-      const pdfHeight = (canvas.height * pixelsToPoints) / 2;
+      // Calculate PDF dimensions based on content aspect ratio
+      const contentAspectRatio = canvas.width / canvas.height;
       
-      // Add small margins for professional appearance
-      const margin = 20; // 20 points margin
-      const finalPdfWidth = pdfWidth + (margin * 2);
-      const finalPdfHeight = pdfHeight + (margin * 2);
-      
-      // Create PDF with custom dimensions matching the screenshot area
+      // Use custom page size that matches content proportions
       const pdf = new jsPDF({
-        orientation: finalPdfWidth > finalPdfHeight ? 'landscape' : 'portrait',
-        unit: 'pt', // Use points for precise control
-        format: [finalPdfWidth, finalPdfHeight] // Custom page size
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [210, 210 / contentAspectRatio] // Width fixed at 210mm (A4 width), height adjusted to content
       });
       
-      // Convert canvas to image and add to PDF at exact size
-      const imgData = canvas.toDataURL('image/png', 0.95); // High quality PNG
-      pdf.addImage(imgData, 'PNG', margin, margin, pdfWidth, pdfHeight);
+      // Get page dimensions
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 5; // Smaller margin for better content fit
+      
+      // Calculate image dimensions to fit A4 with margins
+      const maxWidth = pageWidth - (margin * 2);
+      const maxHeight = pageHeight - (margin * 2);
+      
+      // Fill the page with minimal margins
+      const imgWidth = maxWidth;
+      const imgHeight = maxHeight;
+      
+      // Center the image on the page
+      const xPos = (pageWidth - imgWidth) / 2;
+      const yPos = margin;
+      
+      // Convert canvas to JPEG with optimized quality
+      const imgData = canvas.toDataURL('image/jpeg', 0.85); // Slightly higher quality for cropped content
+      pdf.addImage(imgData, 'JPEG', xPos, yPos, imgWidth, imgHeight);
       
       // Save the PDF
       const fileName = `Sha_Bridge_College_SEMF_Assessment_${studentInfo?.lastName || 'Student'}_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -160,13 +149,16 @@ export const TestResults: React.FC<TestResultsProps> = ({ answers, studentInfo, 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
               {semfResult.skills.map((skill) => {
                 const skillColor = getSEMFLevelColor(skill.level);
+                const maxScore = skill.skill === 'ReadingWriting' ? 24 : 12;
+                const percentage = Math.round((skill.rawScore / maxScore) * 100);
+                
                 return (
                   <div key={skill.skill} className={`${skillColor.bgLight} ${skillColor.border} border-2 rounded-xl p-6`}>
                     <h3 className="text-lg font-bold text-gray-800 mb-2">
                       {skill.skill.replace(/([A-Z])/g, ' $1').trim()}
                     </h3>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-gray-600">Raw Score: {skill.rawScore}</span>
+                      <span className="text-gray-600">Score: {skill.rawScore}/{maxScore} ({percentage}%)</span>
                       <span className={`font-bold text-lg ${skillColor.text}`}>SEMF {skill.level}</span>
                     </div>
                     <div className="text-sm text-gray-600">
@@ -174,6 +166,16 @@ export const TestResults: React.FC<TestResultsProps> = ({ answers, studentInfo, 
                       {skill.tieBreakerApplied && (
                         <span className="ml-2 text-amber-600 font-medium">(Tie-breaker applied)</span>
                       )}
+                    </div>
+                    
+                    {/* Performance bar */}
+                    <div className="mt-3">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-500 ${skillColor.bg}`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -183,13 +185,37 @@ export const TestResults: React.FC<TestResultsProps> = ({ answers, studentInfo, 
             {/* Tie-breaker Skill */}
             <div className="mt-6 bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
               <h3 className="text-lg font-bold text-amber-800 mb-2">Tie-breaker Skill</h3>
-              <div className="text-amber-700">
+              <div className="text-amber-700 mb-2">
                 <span className="font-medium">{semfResult.tieBreakerSkill.skill.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                {semfResult.tieBreakerSkill.rawScore}/20 (Normalized: {semfResult.tieBreakerSkill.normalizedScore}/50)
+                {semfResult.tieBreakerSkill.rawScore}/20 ({Math.round((semfResult.tieBreakerSkill.rawScore/20)*100)}%)
+              </div>
+              <div className="text-amber-700">
+                Normalized: {semfResult.tieBreakerSkill.normalizedScore}/50
               </div>
               <p className="text-sm text-amber-600 mt-2">
                 Used to determine final level when scores are near boundaries
               </p>
+              
+              {/* Performance bar for tie-breaker */}
+              <div className="mt-3">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="h-2 rounded-full bg-amber-500 transition-all duration-500"
+                    style={{ width: `${Math.round((semfResult.tieBreakerSkill.rawScore/20)*100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Performance Analysis */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Performance Analysis</h2>
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed font-sans">
+                {semfResult.summary}
+              </pre>
             </div>
           </div>
 
