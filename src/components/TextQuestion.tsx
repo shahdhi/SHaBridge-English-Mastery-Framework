@@ -41,6 +41,9 @@ export const TextQuestion: React.FC<TextQuestionProps> = ({
             onChange={(e) => onAnswerChange(question.id, e.target.value)}
             className="w-full h-48 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 resize-none"
             placeholder="Write your paragraph here..."
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
           />
         </div>
       ) : (
@@ -57,6 +60,9 @@ export const TextQuestion: React.FC<TextQuestionProps> = ({
                 }}
                 className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
                 placeholder="(1) First answer..."
+                spellcheck="false"
+                autocorrect="off"
+                autocapitalize="off"
               />
               <input
                 type="text"
@@ -68,6 +74,9 @@ export const TextQuestion: React.FC<TextQuestionProps> = ({
                 }}
                 className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
                 placeholder="(2) Second answer..."
+                spellcheck="false"
+                autocorrect="off"
+                autocapitalize="off"
               />
             </div>
           ) : (
@@ -76,6 +85,9 @@ export const TextQuestion: React.FC<TextQuestionProps> = ({
               onChange={(e) => onAnswerChange(question.id, e.target.value)}
               className="w-full h-24 p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 resize-none"
               placeholder="Write your answer here..."
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
             />
           )}
         </div>
